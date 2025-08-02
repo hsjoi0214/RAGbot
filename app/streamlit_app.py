@@ -58,7 +58,7 @@ def init_chat_engine_with_top_k(top_k):
     memory = ChatMemoryBuffer.from_defaults()
     prefix_messages = [
         ChatMessage(role=MessageRole.SYSTEM, content="You are a helpful assistant."),
-        ChatMessage(role=MessageRole.SYSTEM, content="Answer using only the provided context and chat history."),
+        ChatMessage(role=MessageRole.SYSTEM, content="Answer using only the provided context and chat history. Keep your response concise."),
     ]
 
     return ContextChatEngine(
