@@ -1,5 +1,6 @@
 import os
 import streamlit as st
+import pathlib
 from dotenv import load_dotenv
 
 from llama_index.core import (
@@ -16,7 +17,13 @@ from llama_index.core.base.llms.types import ChatMessage, MessageRole
 
 # === Load environment variables ===
 load_dotenv()
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY"))
+
+secrets_path = pathlib.Path(".streamlit/secrets.toml")
+
+if secrets_path.exists():
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+else:
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # === Constants ===
 TEXT_FILE = "data/crime_and_punishment.txt"
