@@ -1,0 +1,6 @@
+# Ignore storage and virtual environment
+venv/
+.env
+
+# Optional OS clutter
+.DS_Store
