@@ -16,6 +16,7 @@ from llama_index.core.base.llms.types import ChatMessage, MessageRole
 
 # === Load environment variables ===
 load_dotenv()
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY"))
 
 # === Constants ===
 TEXT_FILE = "data/crime_and_punishment.txt"
@@ -44,7 +45,7 @@ def init_chat_engine_with_top_k(top_k):
 
     llm = Groq(
         model=GROQ_MODEL,
-        token=os.environ["GROQ_API_KEY"]
+        token=GROQ_API_KEY
     )
 
     memory = ChatMemoryBuffer.from_defaults()
