@@ -9,6 +9,8 @@ if str(ROOT) not in sys.path:
 import os, pathlib, time, uuid
 import streamlit as st
 from dotenv import load_dotenv
+import time
+from app.tracing import get_tracer
 
 from llama_index.core import SimpleDirectoryReader, VectorStoreIndex, StorageContext, load_index_from_storage
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
@@ -38,6 +40,10 @@ else:
 st.set_page_config(page_title="📖 Chat with Dostoevsky", layout="centered")
 st.title("RAGbot — Conversations with *Crime and Punishment*")
 st.caption("Ask anything about Dostoevsky's masterpiece and let LLaMA 3 guide you.")
+if st.button("Emit test trace"):
+    with get_tracer().start_as_current_span("ui.smoke") as s:
+        s.set_attribute("clicked_at", int(time.time()))
+    st.success("Sent a test trace — check Jaeger (service: rag-streamlit).")
 
 # Stable session id for correlating requests
 if "session_id" not in st.session_state:

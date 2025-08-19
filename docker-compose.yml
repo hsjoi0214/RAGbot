@@ -7,7 +7,7 @@ services:
         - COLLECTOR_OTLP_ENABLED=true
       ports:
         - "16686:16686"  # Jaeger UI
-        - "4317:4317"    # OTLP gRPC ingest
+        - "4318:4318"    # OTLP http
       restart: unless-stopped
 
   # Optional: Prometheus & Grafana (for Metrics)
