@@ -1,0 +1,7 @@
+# Tracing → export via OTLP (to Jaeger/Tempo/etc.)
+opentelemetry-api==1.25.0
+opentelemetry-sdk==1.25.0
+opentelemetry-exporter-otlp==1.25.0
+
+# Optional metrics if you keep Prometheus later
+prometheus_client==0.22.1

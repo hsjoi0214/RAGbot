@@ -1,0 +1,36 @@
+version: '3.9'
+
+services:
+  jaeger:
+      image: jaegertracing/all-in-one:1.57
+      environment:
+        - COLLECTOR_OTLP_ENABLED=true
+      ports:
+        - "16686:16686"  # Jaeger UI
+        - "4317:4317"    # OTLP gRPC ingest
+      restart: unless-stopped
+
+  # Optional: Prometheus & Grafana (for Metrics)
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"  # Prometheus UI
+    networks:
+      - observability_net
+
+  grafana:
+    image: grafana/grafana:11.0.0
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - observability_net
+
+networks:
+  observability_net:
+    driver: bridge

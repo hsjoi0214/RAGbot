@@ -1,0 +1,7 @@
+# Keep OTel on a single, known-good line
+opentelemetry-api==1.25.0
+opentelemetry-sdk==1.25.0
+opentelemetry-exporter-otlp==1.25.0
+opentelemetry-proto==1.25.0
+# Proto lib range OTel expects
+protobuf>=4.21,<6
