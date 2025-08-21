@@ -23,21 +23,29 @@ def init_tracer() -> trace.Tracer:
     if _tracer:
         return _tracer
 
+    # Create the resource using the environment variables (loaded via the .env file)
     resource = Resource.create({
-        "service.name": cfg.SERVICE_NAME,
-        "service.version": "0.1.0",
-        "deployment.environment": cfg.ENV,
+        "service.name": cfg.SERVICE_NAME,  # Ensure the service name is set from your config (like "rag-streamlit")
+        "service.version": "0.1.0",  # You can update this if you use versioning
+        "deployment.environment": cfg.ENV,  # Environment (e.g., "cloud")
     })
 
-    # Local default: Jaeger all-in-one HTTP ingest
-    endpoint = os.getenv("OTLP_HTTP_ENDPOINT", "http://localhost:4318/v1/traces")
-    headers = _parse_headers(os.getenv("OTLP_HEADERS"))
+    # Replace with Grafana Cloud's OTLP endpoint from your .env
+    endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://otlp-gateway-prod-eu-west-2.grafana.net/otlp")
+    
+    # Parse OTLP headers from the .env file
+    headers = _parse_headers(os.getenv("OTEL_EXPORTER_OTLP_HEADERS"))
 
+    # Initialize OpenTelemetry's TracerProvider with the resource and the exporter (OTLP)
     _provider = TracerProvider(resource=resource)
     _provider.add_span_processor(BatchSpanProcessor(
         OTLPSpanExporter(endpoint=endpoint, headers=headers)
     ))
+
+    # Set the tracer provider globally
     trace.set_tracer_provider(_provider)
+    
+    # Initialize the tracer
     _tracer = trace.get_tracer(cfg.SERVICE_NAME)
     return _tracer
 

@@ -43,7 +43,7 @@ st.caption("Ask anything about Dostoevsky's masterpiece and let LLaMA 3 guide yo
 if st.button("Emit test trace"):
     with get_tracer().start_as_current_span("ui.smoke") as s:
         s.set_attribute("clicked_at", int(time.time()))
-    st.success("Sent a test trace — check Jaeger (service: rag-streamlit).")
+    st.success("Sent a test trace — check Grafana Cloud (service: my-app).")
 
 # Stable session id for correlating requests
 if "session_id" not in st.session_state:
