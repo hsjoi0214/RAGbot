@@ -25,14 +25,69 @@ from app.tracing import get_tracer
 from app.metrics import REQS, ERRS, LAT_E2E, TOK_IN, TOK_OUT
 from app.logging_utils import log_event
 
-# === ENV: force-load the nearest .env from the current working dir upward
-ENV_PATH = find_dotenv(usecwd=True)
-load_dotenv(ENV_PATH)
+# === ENV: load .env explicitly from repo root, fallback to search upward
+ENV_PATH = ROOT / ".env"
+if ENV_PATH.exists():
+    load_dotenv(dotenv_path=ENV_PATH)           # preferred: exact file
+else:
+    load_dotenv(find_dotenv(usecwd=True))       # fallback
 
 # Silence HF tokenizers parallelism warning
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 # Quiet Streamlit file-watcher tip if you don’t want to install watchdog
 os.environ.setdefault("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
+
+# ----------------- SECRETS / API KEY (robust) -----------------
+def _mask(k: str) -> str:
+    if not k or len(k) < 10:
+        return "<missing>"
+    return k[:4] + "..." + k[-4:]
+
+secrets_path = pathlib.Path(".streamlit/secrets.toml")
+
+# Prefer Streamlit secrets if present; else env loaded above
+secrets_key = None
+if secrets_path.exists():
+    try:
+        secrets_key = st.secrets.get("GROQ_API_KEY")
+    except Exception:
+        secrets_key = None
+
+raw_key = (secrets_key or os.environ.get("GROQ_API_KEY") or "")
+# normalize: strip + remove accidental newline / carriage returns
+GROQ_API_KEY = raw_key.strip().replace("\n", "").replace("\r", "")
+
+if not GROQ_API_KEY or not GROQ_API_KEY.startswith("gsk_"):
+    where = f"{ENV_PATH}" if ENV_PATH.exists() else "search(fallback)"
+    st.error(
+        "GROQ_API_KEY is missing or malformed. Put it in `.env` (repo root) or `.streamlit/secrets.toml` and restart.\n\n"
+        "Examples:\n"
+        "  .env                 -> GROQ_API_KEY=gsk_XXXXXXXXXXXXXXXX\n"
+        "  .streamlit/secrets.toml -> GROQ_API_KEY = \"gsk_XXXXXXXXXXXXXXXX\"\n\n"
+        f"Debug: .env path tried: {where} · secrets.toml: {'present' if secrets_path.exists() else 'absent'}"
+    )
+    st.stop()
+
+# Force-export so any internal code that reads env sees it
+os.environ["GROQ_API_KEY"] = GROQ_API_KEY
+
+# Quick probe using LlamaIndex Groq client (no extra SDK):
+try:
+    _probe_llm = Groq(model=cfg.GROQ_MODEL, api_key=GROQ_API_KEY)
+    # Cheap call that requires auth; if 401, it will raise here
+    _ = _probe_llm.complete("ping")
+except Exception as e:
+    msg = str(e)
+    if "Invalid API Key" in msg or "401" in msg:
+        st.error(
+            f"Groq rejected your API key (401). Loaded key: {_mask(GROQ_API_KEY)}\n"
+            "Double-check the value in `.env` or `secrets.toml` (no quotes, no spaces, no line breaks), "
+            "or regenerate a new key in the Groq console."
+        )
+    else:
+        st.error(f"Groq probe failed: {e}")
+    st.stop()
+# ---------------------------------------------------------------
 
 # --- helpers: corpus + index mgmt ---
 def corpus_exists() -> bool:
@@ -46,36 +101,6 @@ def clear_index_dir():
             pass
     os.makedirs(cfg.PERSIST_DIR, exist_ok=True)
 
-# ----------------- SECRETS / API KEY (robust) -----------------
-def _mask(k: str) -> str:
-    return k[:4] + "…" + k[-4:] if k and len(k) >= 10 else "<missing>"
-
-secrets_path = pathlib.Path(".streamlit/secrets.toml")
-
-# Prefer Streamlit secrets if present; fall back to env
-secrets_key = None
-if secrets_path.exists():
-    try:
-        secrets_key = st.secrets.get("GROQ_API_KEY")
-    except Exception:
-        secrets_key = None
-
-env_key = os.environ.get("GROQ_API_KEY")  # env is populated by load_dotenv above
-GROQ_API_KEY = (secrets_key or env_key or "").strip()
-
-# Fail fast with a friendly message
-if not GROQ_API_KEY:
-    where = f"env at {ENV_PATH}" if ENV_PATH else "env (not found)"
-    st.error(
-        "GROQ_API_KEY is not set. Put it in `.env` or `.streamlit/secrets.toml` and restart.\n\n"
-        "Examples:\n"
-        "  .env\n    GROQ_API_KEY=gsk_XXXXXXXXXXXXXXXX\n\n"
-        "  .streamlit/secrets.toml\n    GROQ_API_KEY = \"gsk_XXXXXXXXXXXXXXXX\"\n\n"
-        f"Debug: tried secrets.toml ({'present' if secrets_path.exists() else 'absent'}) and {where}."
-    )
-    st.stop()
-# ---------------------------------------------------------------
-
 # --- helper: best score from retrieved nodes (if available) ---
 def _best_score(nodes):
     try:
@@ -86,8 +111,10 @@ def _best_score(nodes):
 # --- DIY trace storage (local JSON) ---
 TRACE_FILE = "local_traces.json"
 
+MAX_TRACES = 200  # keep only the last 200 traces
+
 def store_trace(span_name: str, start_s: float, end_s: float, attributes: dict | None = None):
-    """Persist a simple trace event locally for the DIY observability panel."""
+    """Persist a simple trace event locally for the DIY observability panel, capped at MAX_TRACES."""
     rec = {
         "span_name": span_name,
         "start_ts_ms": int(start_s * 1000),
@@ -102,11 +129,17 @@ def store_trace(span_name: str, start_s: float, end_s: float, attributes: dict |
         if os.path.exists(TRACE_FILE):
             with open(TRACE_FILE, "r") as f:
                 existing = json.load(f)
+
         existing.append(rec)
+        # 🚮 keep only the last N traces
+        if len(existing) > MAX_TRACES:
+            existing = existing[-MAX_TRACES:]
+
         with open(TRACE_FILE, "w") as f:
             json.dump(existing, f, indent=2)
     except Exception as e:
         st.warning(f"Could not write {TRACE_FILE}: {e}")
+
 
 def load_traces_df() -> pd.DataFrame:
     if not os.path.exists(TRACE_FILE):
@@ -120,9 +153,7 @@ def load_traces_df() -> pd.DataFrame:
 st.set_page_config(page_title="📖 Chat with Dostoevsky", layout="centered")
 st.title("Conversations with *Crime and Punishment*")
 st.caption("Ask anything about Dostoevsky's masterpiece and let LLaMA 3 (Groq) guide you.")
-
-# Show where .env was loaded from + masked key (helpful debug)
-st.caption(f".env loaded from: {ENV_PATH or 'not found'} · GROQ key: {_mask(GROQ_API_KEY)} · source: {'secrets' if secrets_key else 'env'}")
+st.caption(f".env loaded from: {ENV_PATH if ENV_PATH.exists() else 'fallback search'} · GROQ key: {_mask(GROQ_API_KEY)} · source: {'secrets' if secrets_key else 'env'}")
 
 # Stable session id
 if "session_id" not in st.session_state:
@@ -264,7 +295,10 @@ if prompt := st.chat_input(" Ask a philosophical or narrative question..."):
     except Exception as e:
         ERRS.labels(route="/chat", type=type(e).__name__).inc()
         log_event("error", request_id=req_id, error=str(e))
-        st.error(f"Something went wrong: {e}")
+        if "Invalid API Key" in str(e) or "401" in str(e):
+            st.error("Groq rejected your API key (401). Check `GROQ_API_KEY` again.")
+        else:
+            st.error(f"Something went wrong: {e}")
 
 # === DIY observability panel ===
 st.divider()
@@ -272,7 +306,7 @@ st.subheader("🔎 DIY Observability")
 
 df = load_traces_df()
 if df.empty:
-    st.info("No local traces yet. Ask a question to record retrieval, generation, and end‑to‑end timings.")
+    st.info("No local traces yet. Ask a question to record retrieval, generation, and end-to-end timings.")
 else:
     df = df.sort_values("start_ts_ms")
     recent = df.tail(20)
