@@ -13,7 +13,7 @@ class Config:
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
     # Observability
-    SERVICE_NAME: str = os.getenv("SERVICE_NAME", "my-app")
+    SERVICE_NAME: str = os.getenv("SERVICE_NAME", "my-ragbot-app")
     TRACING_ENABLED: bool = os.getenv("TRACING_ENABLED", "1") == "1"
     # Replace Grafana Cloud with local OTLP endpoint for testing
     OTEL_EXPORTER_OTLP_ENDPOINT: str = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:14250")  # Local Jaeger or OTLP endpoint
