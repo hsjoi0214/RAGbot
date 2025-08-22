@@ -8,7 +8,7 @@ def _start_server_once():
     global _started
     if not _started and cfg.METRICS_ENABLED:
         try:
-            start_http_server(cfg.METRICS_PORT)
+            start_http_server(cfg.METRICS_PORT)  # Local metrics server for Prometheus to scrape
             _started = True
         except OSError:
             # Already started (common on Streamlit reruns)

@@ -5,12 +5,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 # ---------------------------------------
 
-# app/streamlit_app.py
 import os, pathlib, time, uuid
 import streamlit as st
+import json
 from dotenv import load_dotenv
-import time
 from app.tracing import get_tracer
+import pandas as pd
 
 from llama_index.core import SimpleDirectoryReader, VectorStoreIndex, StorageContext, load_index_from_storage
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
@@ -20,12 +20,10 @@ from llama_index.core.chat_engine import ContextChatEngine
 from llama_index.core.base.llms.types import ChatMessage, MessageRole
 
 # Observability bits
-# NEW (absolute package imports)
 from app.config import cfg
 from app.tracing import get_tracer
 from app.metrics import REQS, ERRS, LAT_E2E, TOK_IN, TOK_OUT
 from app.logging_utils import log_event
-
 
 load_dotenv()
 
@@ -43,7 +41,9 @@ st.caption("Ask anything about Dostoevsky's masterpiece and let LLaMA 3 guide yo
 if st.button("Emit test trace"):
     with get_tracer().start_as_current_span("ui.smoke") as s:
         s.set_attribute("clicked_at", int(time.time()))
-    st.success("Sent a test trace — check Grafana Cloud (service: my-app).")
+        # Store the test trace locally
+        store_trace("ui.smoke", s)
+    st.success("Sent a test trace — check your local traces.")
 
 # Stable session id for correlating requests
 if "session_id" not in st.session_state:
@@ -133,9 +133,6 @@ if prompt := st.chat_input(" Ask a philosophical or narrative question..."):
 
         # Metrics
         LAT_E2E.labels(route="/chat").observe(time.perf_counter() - start)
-        # If you later get token counts, call:
-        # TOK_IN.labels(model=cfg.GROQ_MODEL).observe(prompt_tokens)
-        # TOK_OUT.labels(model=cfg.GROQ_MODEL).observe(completion_tokens)
 
         log_event("query_answered",
                   request_id=req_id,
@@ -150,3 +147,43 @@ if prompt := st.chat_input(" Ask a philosophical or narrative question..."):
         log_event("error", request_id=req_id, error=str(e))
         st.error(f"Something went wrong: {e}")
 
+
+# --- Store trace data ---
+def store_trace(span_name, span):
+    trace_data = {
+        'span_name': span_name,
+        'start_time': span.start_time,
+        'end_time': span.end_time,
+        'duration': span.end_time - span.start_time,
+        'attributes': span.attributes
+    }
+    # Save trace data locally in a file
+    trace_file = "local_traces.json"
+    if os.path.exists(trace_file):
+        with open(trace_file, 'r') as f:
+            existing_traces = json.load(f)
+    else:
+        existing_traces = []
+
+    existing_traces.append(trace_data)
+
+    with open(trace_file, 'w') as f:
+        json.dump(existing_traces, f, indent=4)
+
+# --- Visualize trace data ---
+def visualize_traces():
+    trace_file = "local_traces.json"
+    if os.path.exists(trace_file):
+        with open(trace_file, 'r') as f:
+            traces = json.load(f)
+        
+        # Convert trace data into a DataFrame for visualization
+        df = pd.DataFrame(traces)
+        st.write(df)  # Display trace data in tabular form
+        
+        # Show a simple line chart for trace durations
+        if 'duration' in df.columns:
+            st.line_chart(df['duration'])
+
+# Call visualization function on page load
+visualize_traces()

@@ -15,8 +15,9 @@ class Config:
     # Observability
     SERVICE_NAME: str = os.getenv("SERVICE_NAME", "my-app")
     TRACING_ENABLED: bool = os.getenv("TRACING_ENABLED", "1") == "1"
-    OTEL_EXPORTER_OTLP_ENDPOINT: str = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://otlp-gateway-prod-eu-west-2.grafana.net/otlp/v1/traces")  # Change to Grafana OTLP endpoint
-    OTEL_EXPORTER_OTLP_HEADERS: str = os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")  # Ensure it's picked up
+    # Replace Grafana Cloud with local OTLP endpoint for testing
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:14250")  # Local Jaeger or OTLP endpoint
+    OTEL_EXPORTER_OTLP_HEADERS: str = os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")
     METRICS_ENABLED: bool = os.getenv("METRICS_ENABLED", "1") == "1"
     METRICS_PORT: int = int(os.getenv("METRICS_PORT", "9000"))
 
@@ -24,7 +25,6 @@ class Config:
     ENV: str = os.getenv("ENV", "production") 
 
 cfg = Config()
-
 
 # Create folders that must exist
 Path("data").mkdir(exist_ok=True, parents=True)

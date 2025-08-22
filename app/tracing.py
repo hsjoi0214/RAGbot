@@ -1,4 +1,3 @@
-# app/tracing.py
 from typing import Optional
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
@@ -30,8 +29,8 @@ def init_tracer() -> trace.Tracer:
         "deployment.environment": cfg.ENV,  # Environment (e.g., "cloud")
     })
 
-    # Replace with Grafana Cloud's OTLP endpoint from your .env
-    endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://otlp-gateway-prod-eu-west-2.grafana.net/otlp")
+    # Use local OTLP or Jaeger endpoint for local testing
+    endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:14250")  # Local Jaeger endpoint
     
     # Parse OTLP headers from the .env file
     headers = _parse_headers(os.getenv("OTEL_EXPORTER_OTLP_HEADERS"))
