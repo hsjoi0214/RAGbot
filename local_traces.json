@@ -103,5 +103,282 @@
     },
     "session_id": "s_a82765bf",
     "request_id": "r_eafe1257"
+  },
+  {
+    "span_name": "retrieve.topk",
+    "start_ts_ms": 37556676,
+    "end_ts_ms": 37557163,
+    "duration_ms": 487.245,
+    "attributes": {
+      "k": 2,
+      "hits": 2,
+      "best_score": 0.44978760098488113,
+      "request_id": "r_a2609de3"
+    },
+    "session_id": "s_4622c197",
+    "request_id": "r_a2609de3"
+  },
+  {
+    "span_name": "engine.chat",
+    "start_ts_ms": 37557164,
+    "end_ts_ms": 37557904,
+    "duration_ms": 740.031,
+    "attributes": {
+      "model": "llama-3.3-70b-versatile",
+      "request_id": "r_a2609de3"
+    },
+    "session_id": "s_4622c197",
+    "request_id": "r_a2609de3"
+  },
+  {
+    "span_name": "rag.e2e",
+    "start_ts_ms": 37556675,
+    "end_ts_ms": 37557905,
+    "duration_ms": 1229.605,
+    "attributes": {
+      "top_k": 2,
+      "request_id": "r_a2609de3"
+    },
+    "session_id": "s_4622c197",
+    "request_id": "r_a2609de3"
+  },
+  {
+    "span_name": "retrieve.topk",
+    "start_ts_ms": 40360732,
+    "end_ts_ms": 40361114,
+    "duration_ms": 381.769,
+    "attributes": {
+      "k": 2,
+      "hits": 2,
+      "best_score": 0.4376786119726976,
+      "request_id": "r_58b113ae"
+    },
+    "session_id": "s_aae067d0",
+    "request_id": "r_58b113ae"
+  },
+  {
+    "span_name": "engine.chat",
+    "start_ts_ms": 40361115,
+    "end_ts_ms": 40361788,
+    "duration_ms": 673.162,
+    "attributes": {
+      "model": "llama-3.3-70b-versatile",
+      "request_id": "r_58b113ae"
+    },
+    "session_id": "s_aae067d0",
+    "request_id": "r_58b113ae"
+  },
+  {
+    "span_name": "rag.e2e",
+    "start_ts_ms": 40360731,
+    "end_ts_ms": 40361789,
+    "duration_ms": 1057.264,
+    "attributes": {
+      "top_k": 2,
+      "request_id": "r_58b113ae"
+    },
+    "session_id": "s_aae067d0",
+    "request_id": "r_58b113ae"
+  },
+  {
+    "span_name": "retrieve.topk",
+    "start_ts_ms": 40378469,
+    "end_ts_ms": 40378590,
+    "duration_ms": 121.096,
+    "attributes": {
+      "k": 2,
+      "hits": 2,
+      "best_score": 0.3826711320834149,
+      "request_id": "r_f0674a3c"
+    },
+    "session_id": "s_aae067d0",
+    "request_id": "r_f0674a3c"
+  },
+  {
+    "span_name": "engine.chat",
+    "start_ts_ms": 40378592,
+    "end_ts_ms": 40379127,
+    "duration_ms": 535.209,
+    "attributes": {
+      "model": "llama-3.3-70b-versatile",
+      "request_id": "r_f0674a3c"
+    },
+    "session_id": "s_aae067d0",
+    "request_id": "r_f0674a3c"
+  },
+  {
+    "span_name": "rag.e2e",
+    "start_ts_ms": 40378468,
+    "end_ts_ms": 40379130,
+    "duration_ms": 661.455,
+    "attributes": {
+      "top_k": 2,
+      "request_id": "r_f0674a3c"
+    },
+    "session_id": "s_aae067d0",
+    "request_id": "r_f0674a3c"
+  },
+  {
+    "span_name": "ui.smoke",
+    "start_ts_ms": 42046291,
+    "end_ts_ms": 42046291,
+    "duration_ms": 0.186,
+    "attributes": {
+      "clicked_at": 1756276716
+    },
+    "session_id": "s_c69d889e",
+    "request_id": null
+  },
+  {
+    "span_name": "retrieve.topk",
+    "start_ts_ms": 42077231,
+    "end_ts_ms": 42077474,
+    "duration_ms": 243.28,
+    "attributes": {
+      "k": 2,
+      "hits": 2,
+      "best_score": 0.405869735396655,
+      "request_id": "r_6de79985"
+    },
+    "session_id": "s_bbc93326",
+    "request_id": "r_6de79985"
+  },
+  {
+    "span_name": "engine.chat",
+    "start_ts_ms": 42077475,
+    "end_ts_ms": 42078105,
+    "duration_ms": 630.122,
+    "attributes": {
+      "model": "llama-3.3-70b-versatile",
+      "request_id": "r_6de79985"
+    },
+    "session_id": "s_bbc93326",
+    "request_id": "r_6de79985"
+  },
+  {
+    "span_name": "rag.e2e",
+    "start_ts_ms": 42077229,
+    "end_ts_ms": 42078107,
+    "duration_ms": 877.43,
+    "attributes": {
+      "top_k": 2,
+      "request_id": "r_6de79985"
+    },
+    "session_id": "s_bbc93326",
+    "request_id": "r_6de79985"
+  },
+  {
+    "span_name": "retrieve.topk",
+    "start_ts_ms": 42104396,
+    "end_ts_ms": 42105210,
+    "duration_ms": 813.567,
+    "attributes": {
+      "k": 3,
+      "hits": 3,
+      "best_score": 0.2576978417887168,
+      "request_id": "r_f414b91b"
+    },
+    "session_id": "s_bbc93326",
+    "request_id": "r_f414b91b"
+  },
+  {
+    "span_name": "engine.chat",
+    "start_ts_ms": 42105211,
+    "end_ts_ms": 42106010,
+    "duration_ms": 798.654,
+    "attributes": {
+      "model": "llama-3.3-70b-versatile",
+      "request_id": "r_f414b91b"
+    },
+    "session_id": "s_bbc93326",
+    "request_id": "r_f414b91b"
+  },
+  {
+    "span_name": "rag.e2e",
+    "start_ts_ms": 42104395,
+    "end_ts_ms": 42106012,
+    "duration_ms": 1616.477,
+    "attributes": {
+      "top_k": 3,
+      "request_id": "r_f414b91b"
+    },
+    "session_id": "s_bbc93326",
+    "request_id": "r_f414b91b"
+  },
+  {
+    "span_name": "retrieve.topk",
+    "start_ts_ms": 42590670,
+    "end_ts_ms": 42591518,
+    "duration_ms": 848.628,
+    "attributes": {
+      "k": 2,
+      "hits": 2,
+      "best_score": 0.4072793592880544,
+      "request_id": "r_7fa57a85"
+    },
+    "session_id": "s_66b9ba58",
+    "request_id": "r_7fa57a85"
+  },
+  {
+    "span_name": "engine.chat",
+    "start_ts_ms": 42591520,
+    "end_ts_ms": 42592825,
+    "duration_ms": 1304.906,
+    "attributes": {
+      "model": "llama-3.3-70b-versatile",
+      "request_id": "r_7fa57a85"
+    },
+    "session_id": "s_66b9ba58",
+    "request_id": "r_7fa57a85"
+  },
+  {
+    "span_name": "rag.e2e",
+    "start_ts_ms": 42590669,
+    "end_ts_ms": 42592827,
+    "duration_ms": 2158.449,
+    "attributes": {
+      "top_k": 2,
+      "request_id": "r_7fa57a85"
+    },
+    "session_id": "s_66b9ba58",
+    "request_id": "r_7fa57a85"
+  },
+  {
+    "span_name": "retrieve.topk",
+    "start_ts_ms": 42625468,
+    "end_ts_ms": 42625701,
+    "duration_ms": 232.477,
+    "attributes": {
+      "k": 3,
+      "hits": 3,
+      "best_score": 0.3126881345685992,
+      "request_id": "r_14b6cb4d"
+    },
+    "session_id": "s_66b9ba58",
+    "request_id": "r_14b6cb4d"
+  },
+  {
+    "span_name": "engine.chat",
+    "start_ts_ms": 42625702,
+    "end_ts_ms": 42626712,
+    "duration_ms": 1009.679,
+    "attributes": {
+      "model": "llama-3.3-70b-versatile",
+      "request_id": "r_14b6cb4d"
+    },
+    "session_id": "s_66b9ba58",
+    "request_id": "r_14b6cb4d"
+  },
+  {
+    "span_name": "rag.e2e",
+    "start_ts_ms": 42625467,
+    "end_ts_ms": 42626714,
+    "duration_ms": 1246.641,
+    "attributes": {
+      "top_k": 3,
+      "request_id": "r_14b6cb4d"
+    },
+    "session_id": "s_66b9ba58",
+    "request_id": "r_14b6cb4d"
   }
 ]
