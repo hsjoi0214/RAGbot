@@ -318,7 +318,7 @@ with c3:
     )
 
 # === Tabs: main chat & DIY ===
-tab_chat, tab_diy = st.tabs(["💬 Chat", "🛠️ DIY Observability"])
+tab_chat, tab_diy = st.tabs(["💬 Chat", "🛠️ Observability Dashboard"])
 
 # --- Cached retriever builder (unchanged core) ---
 @st.cache_resource
@@ -446,7 +446,9 @@ You can control how many chunks to retrieve (`top_k`).
     # - we log/trace
     # - we run retrieval and generation
     # - we show the answer
-    if prompt := st.chat_input(" Ask a philosophical or narrative question..."):
+    prompt = st.chat_input(" Ask a philosophical or narrative question...")
+
+    if prompt:
         REQS.labels(route="/chat").inc()  # increment request count metric
         req_id = f"r_{uuid.uuid4().hex[:8]}"
         start = time.perf_counter()
@@ -458,9 +460,8 @@ You can control how many chunks to retrieve (`top_k`).
             top_k=top_k,
         )
 
-        # Echo the user's message into the transcript immediately.
-        with st.chat_message("user"):
-            st.markdown(prompt)
+        # (Removed inline echo of the user's message so the input stays at the bottom
+        # and the conversation renders above via the history loop on rerun.)
 
         try:
             with st.spinner("🧠 Thinking deeply like Raskolnikov..."):
@@ -478,7 +479,7 @@ You can control how many chunks to retrieve (`top_k`).
                 t_gen0 = time.perf_counter()
                 with tracer.start_as_current_span("engine.chat") as s:
                     s.set_attribute("model", cfg.GROQ_MODEL)
-                    answer = chat_engine.chat(prompt)
+                    answer = chat_engine.chat(prompt)   # this updates chat_engine.chat_history
                     response = answer.response or ""
                 t_gen1 = time.perf_counter()
                 store_trace("engine.chat", t_gen0, t_gen1, {"model": cfg.GROQ_MODEL, "request_id": req_id})
@@ -492,9 +493,9 @@ You can control how many chunks to retrieve (`top_k`).
             LAT_E2E.labels(route="/chat").observe(time.perf_counter() - start)
             log_event("query_answered", request_id=req_id, response_len=len(response), model=cfg.GROQ_MODEL)
 
-            # Finally, show the assistant's response in the chat transcript.
-            with st.chat_message("assistant"):
-                st.markdown(response)
+            # (Removed inline echo of the assistant's response for the same reason.)
+            # Instead, rerun so the updated chat history renders above and the input stays pinned at the bottom.
+            st.rerun()
 
         except Exception as e:
             # If anything fails, we log and show a friendly error.
@@ -505,10 +506,48 @@ You can control how many chunks to retrieve (`top_k`).
             else:
                 st.error(f"Something went wrong: {e}")
 
+
 # --- DIY Observability tab ---                
 with tab_diy:
-    st.subheader("🔎 DIY Observability")
-
+    st.subheader("🔎 Observability Dashboard")
+    st.caption("See timings & traces for retrieval, generation, and roundtrip.")
+    # Friendly explainer for lay users
+    st.markdown("""
+    <style>
+      .explaincard {
+        border: 1.5px solid #FFC000;            /* golden edge */
+        border-radius: 12px;
+        padding: 14px 16px;
+        background: #1f2030;                    /* subtle dark bg */
+        color: #ffffff;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+        margin-bottom: 10px;
+        line-height: 1.45;
+      }
+      .explaincard h4 { margin: 0 0 6px 0; font-size: 18px; }
+      .explaincard ul { margin: 6px 0 0 18px; }
+    </style>
+    <div class="explaincard">
+      <h4>What you're seeing here</h4>
+      <p>Each time you ask a question, we time three steps:</p>
+      <ul>
+        <li><b>Find passages</b> - time to look up the most relevant chunks from the book</li>
+        <li><b>Write answer</b> - time the AI takes to generate its reply</li>
+        <li><b>Total roundtrip</b> - full time from your question to the final answer</li>
+      </ul>
+      <p>
+        The cards show <b>averages</b> for recent activity. The table lists the latest requests.
+        The chart lines up timings <i>per request</i> so you can compare steps side by side.
+      </p>
+      <p>
+        <b>Show only my session</b>: filter the table/chart to just what <i>you</i> did in this browser.<br/>
+        <b>Emit test trace</b>: adds a tiny <i>Test ping</i> event to the local log (<code>local_traces.json</code>)
+        so you can see the table/chart populate. It does <i>not</i> call the AI or send any data anywhere.
+      </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Friendly names for the main spans we record
     PRETTY_STAGE = {
         "retrieve.topk": "Find passages",
         "engine.chat": "Write answer",
