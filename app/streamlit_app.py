@@ -505,13 +505,18 @@ You can control how many chunks to retrieve (`top_k`).
             else:
                 st.error(f"Something went wrong: {e}")
 
+# --- DIY Observability tab ---                
 with tab_diy:
-    # === DIY observability panel (separate tab) ===
-    # This tab exists so anyone can *see* basic tracing without special tooling.
     st.subheader("🔎 DIY Observability")
 
-    # Emit a test trace (kept here)
-    # A button that writes a quick, harmless trace so you can see the table/chart populate.
+    PRETTY_STAGE = {
+        "retrieve.topk": "Find passages",
+        "engine.chat": "Write answer",
+        "rag.e2e": "Total roundtrip",
+        "ui.smoke": "Test ping",
+    }
+
+    # Emit a test trace
     if st.button("Emit test trace"):
         t0 = time.perf_counter()
         with get_tracer().start_as_current_span("ui.smoke") as s:
@@ -520,41 +525,67 @@ with tab_diy:
         store_trace("ui.smoke", t0, t1, {"clicked_at": int(time.time())})
         st.success("Emitted a test trace locally (local_traces.json).")
 
-    # Load and display recent traces.
     df = load_traces_df()
     if df.empty:
         st.info("No local traces yet. Ask a question to record retrieval, generation, and end-to-end timings.")
     else:
-        # Sort, take last 20, and COPY to avoid pandas SettingWithCopyWarning
-        recent = df.sort_values("start_ts_ms").tail(20).copy()
+        # ---- prep ----
+        df = df.copy()
+        df["duration_s"] = pd.to_numeric(df["duration_ms"], errors="coerce") / 1000.0
+        df["start_ts_s"] = pd.to_numeric(df["start_ts_ms"], errors="coerce") / 1000.0
 
-        # Convert ms → s for display (use .loc to avoid copy warnings)
-        recent.loc[:, "duration_s"] = pd.to_numeric(recent["duration_ms"], errors="coerce") / 1000.0
-        recent.loc[:, "start_ts_s"] = pd.to_numeric(recent["start_ts_ms"], errors="coerce") / 1000.0
+        # Optional filter: only this browser session
+        only_mine = st.checkbox("Show only my session", value=False)
+        if only_mine:
+            df = df[df["session_id"] == st.session_state.get("session_id")]
 
+        if df.empty:
+            st.info("No traces for the current filter yet.")
+            st.stop()
+
+        # Take the latest 20 events overall (keeps original behavior for KPIs/table)
+        recent = df.sort_values("start_ts_ms", ascending=False).head(20).copy()
+
+        # KPI tiles (same logic, raw span names)
         def _avg_s(span: str) -> float:
-            """
-            Compute the average duration (in seconds) for a given span type,
-            e.g., 'retrieve.topk', 'engine.chat', 'rag.e2e'.
-            """
-            ser = pd.to_numeric(recent.loc[recent["span_name"] == span, "duration_s"], errors="coerce").dropna()
+            vals = recent.loc[recent["span_name"] == span, "duration_s"]
+            ser = pd.to_numeric(vals, errors="coerce")
+            ser = pd.Series(ser).dropna()
             return float(ser.mean()) if not ser.empty else 0.0
 
-        # Three small KPI tiles: average times for each main step.
         k1, k2, k3 = st.columns(3)
         k1.metric("Retrieval avg (s)", f"{_avg_s('retrieve.topk'):.3f}")
         k2.metric("Generation avg (s)", f"{_avg_s('engine.chat'):.3f}")
         k3.metric("End-to-end avg (s)", f"{_avg_s('rag.e2e'):.3f}")
 
-        # A compact table with the most recent events.
-        show = recent[["span_name","duration_s","request_id","session_id","start_ts_s"]].rename(
-            columns={"span_name":"stage","duration_s":"duration (s)","start_ts_s":"start (s)"}
-        )
+        # ----- Friendly table: newest first, 1..N indexing -----
+        recent["stage"] = recent["span_name"].map(PRETTY_STAGE).fillna(recent["span_name"])
+        show = recent[["stage", "duration_s", "request_id", "session_id"]].rename(
+            columns={"duration_s": "duration (s)"}
+        ).reset_index(drop=True)
+        show.index = show.index + 1
         st.dataframe(show, use_container_width=True)
 
-        # A simple line chart showing durations over time, one line per span_name.
-        chart_df = recent[["start_ts_s","span_name","duration_s"]].copy()
-        chart_df = chart_df.pivot_table(
-            index="start_ts_s", columns="span_name", values="duration_s", aggfunc="last"
-        ).fillna(0.0)
-        st.line_chart(chart_df)
+        # ----- Request-aligned chart (makes lines visible & comparable) -----
+        # Build one row per request_id, with columns for each stage's duration
+        req_view = (
+            df.sort_values("start_ts_ms")
+              .groupby(["request_id", "span_name"], as_index=False)["duration_s"]
+              .max()
+              .pivot(index="request_id", columns="span_name", values="duration_s")
+              .rename(columns=PRETTY_STAGE)
+        )
+
+        # Keep only the most recent ~10 requests for readability
+        req_view = req_view.tail(10)
+
+        # Make a simple "Request #n" index for the x-axis (not wall time, not perf counter)
+        req_view.index = [f"Req {i}" for i in range(len(req_view) - len(req_view) + 1, len(req_view) + 1)]
+
+        # Ensure all friendly columns exist (shows missing stages as empty)
+        for col in ["Find passages", "Write answer", "Total roundtrip", "Test ping"]:
+            if col not in req_view.columns:
+                req_view[col] = pd.NA
+
+        # Streamlit draws lines only where there are >=2 points; still useful when you ask a few questions
+        st.line_chart(req_view[["Find passages", "Write answer", "Total roundtrip"]])
