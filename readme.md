@@ -222,7 +222,7 @@ Future improvements:
 ---
 
 ## Author
-Prakash Joshi
+Prakash
 
 ---
 
