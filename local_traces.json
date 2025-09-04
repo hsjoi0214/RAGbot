@@ -1108,5 +1108,43 @@
     },
     "session_id": "s_27c2df23",
     "request_id": "r_aac497d5"
+  },
+  {
+    "span_name": "retrieve.topk",
+    "start_ts_ms": 46125433,
+    "end_ts_ms": 46125610,
+    "duration_ms": 176.965,
+    "attributes": {
+      "k": 2,
+      "hits": 2,
+      "best_score": 0.4208345286894377,
+      "request_id": "r_36bbaae5"
+    },
+    "session_id": "s_9dd2d6bb",
+    "request_id": "r_36bbaae5"
+  },
+  {
+    "span_name": "engine.chat",
+    "start_ts_ms": 46125612,
+    "end_ts_ms": 46126472,
+    "duration_ms": 860.75,
+    "attributes": {
+      "model": "llama-3.3-70b-versatile",
+      "request_id": "r_36bbaae5"
+    },
+    "session_id": "s_9dd2d6bb",
+    "request_id": "r_36bbaae5"
+  },
+  {
+    "span_name": "rag.e2e",
+    "start_ts_ms": 46125433,
+    "end_ts_ms": 46126474,
+    "duration_ms": 1041.664,
+    "attributes": {
+      "top_k": 2,
+      "request_id": "r_36bbaae5"
+    },
+    "session_id": "s_9dd2d6bb",
+    "request_id": "r_36bbaae5"
   }
 ]
