@@ -68,6 +68,55 @@ This app follows a **retrieval + generation** architecture using **LlamaIndex**,
 
 ---
 
+## Observability & Monitoring
+
+### Concept
+Observability makes internal behavior visible so we can diagnose why a request was fast/slow or correct/incorrect. It helps pinpoint areas for optimization or performance improvements.
+
+### What We Capture & Why
+
+- **Trace**: The end-to-end record of a single request.
+- **Span**: A timed sub-operation within a trace.  
+Each user query generates three spans:
+   - **retrieve.topk**: Time taken to perform vector search for relevant chunks.
+   - **engine.chat**: Time taken by the LLM to generate the answer.
+   - **rag.e2e**: End-to-end time, from the user’s prompt to the final answer.
+
+These spans are stored in `local_traces.json`, and the DIY Observability tab computes recent averages and displays per-request performance.
+
+### Intuition
+Traces reveal where the time is spent. For example, if retrieval is consistently fast, but generation times are long, this suggests focusing on model/runtime settings rather than the index.
+
+### Walkthrough (Illustrative)
+1. The user asks a question, and a new `request_id` and `session_id` are assigned.
+2. The retriever logs `k`, hit count, and best similarity score for **retrieve.topk**.
+3. The LLM call logs **engine.chat** for the generation process.
+4. The app logs **rag.e2e** for total roundtrip time.
+5. The observability dashboard displays average times for retrieval, generation, and roundtrip, along with a chart for quick visual comparison.
+
+In simple terms, the Observability tab helps you understand where the time goes by showing the details behind each request.
+
+---
+
+### Monitoring: What We Capture & Why
+
+Monitoring helps track a few known signals over time, allowing you to spot issues like drift or outages quickly.
+
+Core metrics:
+- **Availability / success rate**: 1 − (errors/requests)
+- **Throughput**: Requests per minute.
+- **Latency percentiles**: Response time under which 95% and 99% of requests complete.
+- **Health checks**: Ensures API key, corpus file, and index are present.
+
+In the app:
+- **Health**: Shows system status (green/red) with inline reasons for issues (e.g., missing API key, absent corpus file).
+- **Performance**: Success rate, throughput, and latency (p95/p99) are calculated from recorded request durations.
+- **Monitoring Dashboard**: Provides a high-level view of system health and performance, with compact metrics for quick troubleshooting.
+
+Intuition: Monitoring acts as the “smoke alarm” for the system. If something goes wrong, it provides enough information to trigger further investigation in the Observability tab.
+
+---
+
 ## Screenshots
 
 ### 1. Main Chat Interface
@@ -214,7 +263,7 @@ The app is Streamlit-ready and can be deployed:
 ## Contribution Guidelines
 Pull requests are welcome!
 Future improvements:
-1. Add multi-document support.
+1. Add multi-document support and routing.
 2. Enhance UI with richer formatting.
 3. Integrate summarization features.
 4. Retrieve links and sources with answers.
