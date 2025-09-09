@@ -57,6 +57,8 @@ import pandas as pd
 from dotenv import load_dotenv, find_dotenv
 from shutil import rmtree
 
+load_dotenv(find_dotenv(usecwd=True), override=True)
+
 # LlamaIndex: pieces that handle reading files, building a vector index,
 # embedding chunks, talking to the LLM, and maintaining chat memory.
 from llama_index.core import SimpleDirectoryReader, VectorStoreIndex, StorageContext, load_index_from_storage
@@ -65,6 +67,8 @@ from llama_index.llms.groq import Groq
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.chat_engine import ContextChatEngine
 from llama_index.core.base.llms.types import ChatMessage, MessageRole
+from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.postprocessor import SentenceTransformerRerank
 
 # Observability bits (your own small helpers)
 from app.config import cfg                 # central configuration (paths, model names, etc.)
@@ -320,6 +324,17 @@ with c3:
 # === Tabs: main chat & DIY ===
 tab_chat, tab_diy, tab_monitoring = st.tabs(["💬 Chat", "🛠️ Observability Dashboard", "📊 Monitoring Dashboard"])
 
+RETR_TOPK_MAX = 4
+
+# --- Cached lightweight reranker (≈90MB) ---
+@st.cache_resource
+def get_reranker():
+    return SentenceTransformerRerank(
+        model="cross-encoder/ms-marco-MiniLM-L-6-v2",
+        top_n=1,      # keep only the best one; fastest
+        device="cpu", # stable on macOS/ARM
+    )
+
 # --- Cached retriever builder (unchanged core) ---
 @st.cache_resource
 def build_or_load_index(top_k: int):
@@ -342,9 +357,19 @@ def build_or_load_index(top_k: int):
         # If no persisted index exists yet, build from the text file and save it.
         if not os.path.exists(cfg.PERSIST_DIR) or not os.listdir(cfg.PERSIST_DIR):
             docs = SimpleDirectoryReader(input_files=[cfg.TEXT_FILE]).load_data()
-            index = VectorStoreIndex.from_documents(docs, embed_model=embed_model)
+
+            # Fixed, fast chunking (coherent without blowing up node count)
+            node_parser = SentenceSplitter.from_defaults(
+                chunk_size=700,
+                chunk_overlap=120,
+            )
+            nodes = node_parser.get_nodes_from_documents(docs)
+
+            index = VectorStoreIndex(nodes, embed_model=embed_model)
             index.storage_context.persist(persist_dir=cfg.PERSIST_DIR)
             span.set_attribute("built", True)
+            span.set_attribute("chunking", "sentence_splitter_700_120")
+
         else:
             # Otherwise load the previously built index from disk.
             storage_context = StorageContext.from_defaults(persist_dir=cfg.PERSIST_DIR)
@@ -357,12 +382,20 @@ def build_or_load_index(top_k: int):
 
     _ = time.perf_counter() - t0
     # Return a retriever configured to return 'top_k' passages for each query.
-    return index.as_retriever(similarity_top_k=top_k)
+    return index.as_retriever(similarity_top_k=min(top_k, RETR_TOPK_MAX))
 
 # --- Persistent LLM & memory; engine recreated on k-change but keeps memory ---
 # We create the LLM client once per session (same for memory), so chat history persists.
 if "llm" not in st.session_state:
-    st.session_state["llm"] = Groq(model=cfg.GROQ_MODEL, api_key=GROQ_API_KEY)
+    try:
+        st.session_state["llm"] = Groq(
+            model=cfg.GROQ_MODEL,
+            api_key=GROQ_API_KEY,
+            request_timeout=30,  # <- hard cap so it never hangs for minutes
+        )
+    except TypeError:
+        # older wrapper without request_timeout support
+        st.session_state["llm"] = Groq(model=cfg.GROQ_MODEL, api_key=GROQ_API_KEY)
 
 if "chat_memory" not in st.session_state:
     # ChatMemoryBuffer stores the back-and-forth conversation so the model can
@@ -377,17 +410,32 @@ prefix_messages = [
 
 def _make_engine(retriever):
     """
-    Construct a ContextChatEngine that:
-    - Uses the configured LLM (Groq/LLaMA 3)
-    - Pulls context via the retriever (vector search over the book)
-    - Remembers conversation with ChatMemoryBuffer
-    - Injects system instructions from 'prefix_messages'
+    Construct a ContextChatEngine with memory, grounding, and lightweight reranking.
+    What this engine does:
+    - Uses the configured Groq-hosted LLaMA-3 model (`st.session_state["llm"]`).
+    - Retrieves candidate passages from the index via the provided `retriever`.
+    - Runs a lightweight reranker (`cross-encoder/ms-marco-MiniLM-L-6-v2`)
+      to rescore the retrieved nodes and keep only the top-ranked one.
+      (If the reranker fails to load, falls back gracefully to raw retrieval.)
+    - Maintains conversational history with `ChatMemoryBuffer`.
+    - Injects system-level prefix messages (`prefix_messages`) to keep the
+      assistant grounded in context and concise.
+      
+      Returns:
+        ContextChatEngine: the fully configured engine used to answer user queries.
     """
+    try:
+        reranker = get_reranker()
+        node_postprocessors = [reranker]
+    except Exception:
+        node_postprocessors = None  # graceful fallback
+        
     return ContextChatEngine(
         llm=st.session_state["llm"],
         retriever=retriever,
         memory=st.session_state["chat_memory"],
         prefix_messages=prefix_messages,
+        node_postprocessors=node_postprocessors,  # type: ignore[arg-type]
     )
 
 with tab_chat:
@@ -482,11 +530,13 @@ You can control how many chunks to retrieve (`top_k`).
                     answer = chat_engine.chat(prompt)   # this updates chat_engine.chat_history
                     response = answer.response or ""
                 t_gen1 = time.perf_counter()
-                store_trace("engine.chat", t_gen0, t_gen1, {"model": cfg.GROQ_MODEL, "request_id": req_id})
+                store_trace("engine.chat", t_gen0, t_gen1, {"model": cfg.GROQ_MODEL, "request_id": req_id, "reranker": "msmarco_minilm_top1"})
 
                 # 3) End-to-end timing
                 # Full roundtrip: from receiving the question to having an answer.
                 t_e2e1 = time.perf_counter()
+                st.write(f"Response time: {t_gen1 - t_gen0:.4f} seconds")  # in seconds
+
                 store_trace("rag.e2e", start, t_e2e1, {"top_k": top_k, "request_id": req_id})
 
             # Record the duration metric and a success log.
