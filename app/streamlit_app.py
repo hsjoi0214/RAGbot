@@ -53,7 +53,7 @@ if str(ROOT) not in sys.path:
 
 import os, time, uuid, json
 import streamlit as st
-import pandas as pd
+import pandas as pd, numpy as np, altair as alt
 from dotenv import load_dotenv, find_dotenv
 from shutil import rmtree
 
@@ -178,6 +178,26 @@ def _best_score(nodes):
         return getattr(nodes[0], "score", None) if nodes else None
     except Exception:
         return None
+
+# --- helper: stream answer token-by-token (with timing) ---
+def _stream_answer(chat_engine, prompt: str):
+    """
+    Stream the assistant's answer token-by-token to the UI.
+    Returns (final_text, t_start, t_end).
+    """
+    resp = chat_engine.stream_chat(prompt)  # StreamingResponse from LlamaIndex
+    chunks = []
+    t0 = time.perf_counter()
+    with st.chat_message("assistant"):
+        placeholder = st.empty()
+        for token in resp.response_gen:
+            if token:
+                chunks.append(token)
+                # live update
+                placeholder.markdown("".join(chunks))
+    t1 = time.perf_counter()
+    # resp.response is usually populated at the end; fallback to joined chunks
+    return (resp.response or "".join(chunks)), t0, t1
 
 # --- DIY trace storage (local JSON) ---
 # We keep a rolling set of simple traces in a local JSON file so anyone can
@@ -360,8 +380,8 @@ def build_or_load_index(top_k: int):
 
             # Fixed, fast chunking (coherent without blowing up node count)
             node_parser = SentenceSplitter.from_defaults(
-                chunk_size=700,
-                chunk_overlap=120,
+                chunk_size=500,
+                chunk_overlap=80,
             )
             nodes = node_parser.get_nodes_from_documents(docs)
 
@@ -391,7 +411,11 @@ if "llm" not in st.session_state:
         st.session_state["llm"] = Groq(
             model=cfg.GROQ_MODEL,
             api_key=GROQ_API_KEY,
-            request_timeout=30,  # <- hard cap so it never hangs for minutes
+            temperature=0.2,
+            top_p=0.95,
+            max_tokens=200,                 # <- HARD cap completion length
+            request_timeout=30,             # <- fail fast instead of hanging
+            stop=["\n\nUser:", "\n\nHuman:"],  # <- curb rambling in some models
         )
     except TypeError:
         # older wrapper without request_timeout support
@@ -400,12 +424,18 @@ if "llm" not in st.session_state:
 if "chat_memory" not in st.session_state:
     # ChatMemoryBuffer stores the back-and-forth conversation so the model can
     # consider previous questions/answers.
-    st.session_state["chat_memory"] = ChatMemoryBuffer.from_defaults()
+    st.session_state["chat_memory"] = ChatMemoryBuffer.from_defaults(token_limit=1200)
 
 # System-level instructions to keep answers grounded in retrieved context and brief.
 prefix_messages = [
-    ChatMessage(role=MessageRole.SYSTEM, content="You are a helpful assistant."),
-    ChatMessage(role=MessageRole.SYSTEM, content="Answer using only the provided context and chat history. Keep your response concise."),
+    ChatMessage(
+        role=MessageRole.SYSTEM,
+        content=(
+            "Answer ONLY from the provided excerpt(s). Keep it concise (<=120 words). "
+            "If the excerpt is insufficient, say: 'I don't know based on the text.' "
+            "Cite short quotes from the excerpt only. Avoid speculation."
+        ),
+    ),
 ]
 
 def _make_engine(retriever):
@@ -513,29 +543,31 @@ You can control how many chunks to retrieve (`top_k`).
 
         try:
             with st.spinner("🧠 Thinking deeply like Raskolnikov..."):
-                # 1) Retrieval timing
-                # We time how long it takes to fetch the top_k most relevant passages.
-                t_ret0 = time.perf_counter()
-                nodes = retriever.retrieve(prompt)
-                t_ret1 = time.perf_counter()
+                # We time three segments: retrieval, generation, and end-to-end.
+                # Each segment is recorded as a separate span in the local JSON trace log.
+                # We also record some attributes like top similarity score, model used, etc.
+                # 1) Retrieval timing (keep spinner here only)
+                with st.spinner("🔎 Finding relevant passages..."):
+                    t_ret0 = time.perf_counter()
+                    nodes = retriever.retrieve(prompt)
+                    t_ret1 = time.perf_counter()
                 store_trace("retrieve.topk", t_ret0, t_ret1, {
                     "k": top_k, "hits": len(nodes), "best_score": _best_score(nodes), "request_id": req_id
                 })
 
-                # 2) Generation timing
-                # We time the LLM call using the chat engine (includes memory and context).
-                t_gen0 = time.perf_counter()
+                # 2) Generation timing (stream live; NO spinner here)
                 with tracer.start_as_current_span("engine.chat") as s:
                     s.set_attribute("model", cfg.GROQ_MODEL)
-                    answer = chat_engine.chat(prompt)   # this updates chat_engine.chat_history
-                    response = answer.response or ""
-                t_gen1 = time.perf_counter()
-                store_trace("engine.chat", t_gen0, t_gen1, {"model": cfg.GROQ_MODEL, "request_id": req_id, "reranker": "msmarco_minilm_top1"})
+                    response, t_gen0, t_gen1 = _stream_answer(chat_engine, prompt)
 
-                # 3) End-to-end timing
-                # Full roundtrip: from receiving the question to having an answer.
+                store_trace(
+                    "engine.chat", t_gen0, t_gen1,
+                    {"model": cfg.GROQ_MODEL, "request_id": req_id, "reranker": "msmarco_minilm_top1"}
+                )
+
+                # 3) End-to-end timing + small caption (don’t block UI)
                 t_e2e1 = time.perf_counter()
-                st.write(f"Response time: {t_gen1 - t_gen0:.4f} seconds")  # in seconds
+                st.caption(f"🕒 Generation time: {t_gen1 - t_gen0:.3f}s")
 
                 store_trace("rag.e2e", start, t_e2e1, {"top_k": top_k, "request_id": req_id})
 
@@ -557,10 +589,11 @@ You can control how many chunks to retrieve (`top_k`).
                 st.error(f"Something went wrong: {e}")
 
 
-# --- DIY Observability tab ---                
+# --- DIY Observability tab ---
 with tab_diy:
     st.subheader("🔎 Observability Dashboard")
     st.caption("See timings & traces for retrieval, generation, and roundtrip.")
+    
     # Friendly explainer for lay users
     st.markdown("""
     <style>
@@ -655,29 +688,121 @@ with tab_diy:
         show.index = show.index + 1
         st.dataframe(show, use_container_width=True)
 
-        # ----- Request-aligned chart (makes lines visible & comparable) -----
-        # Build one row per request_id, with columns for each stage's duration
+        # ----- Request-aligned stacked bar chart -----
+        # Ensure that all stages have proper names in PRETTY_STAGE
         req_view = (
             df.sort_values("start_ts_ms")
-              .groupby(["request_id", "span_name"], as_index=False)["duration_s"]
-              .max()
-              .pivot(index="request_id", columns="span_name", values="duration_s")
-              .rename(columns=PRETTY_STAGE)
+            .groupby(["request_id", "span_name"], as_index=False)["duration_s"]
+            .max()
+            .pivot(index="request_id", columns="span_name", values="duration_s")
+            .rename(columns=PRETTY_STAGE)
         )
-
+        
         # Keep only the most recent ~10 requests for readability
         req_view = req_view.tail(10)
 
-        # Make a simple "Request #n" index for the x-axis (not wall time, not perf counter)
-        req_view.index = [f"Req {i}" for i in range(len(req_view) - len(req_view) + 1, len(req_view) + 1)]
-
-        # Ensure all friendly columns exist (shows missing stages as empty)
-        for col in ["Find passages", "Write answer", "Total roundtrip", "Test ping"]:
+        # Make sure all expected columns exist (fill missing stages as NaN)
+        for col in ["Find passages", "Write answer", "Total roundtrip"]:
             if col not in req_view.columns:
                 req_view[col] = pd.NA
 
-        # Streamlit draws lines only where there are >=2 points; still useful when you ask a few questions
-        st.line_chart(req_view[["Find passages", "Write answer", "Total roundtrip"]])
+        # Wide -> long (explicit names)
+        req_view = (
+            req_view[["Find passages", "Write answer", "Total roundtrip"]]
+            .reset_index()  # assumes the index is 'request_id'
+            .melt(id_vars="request_id", var_name="stage", value_name="duration_s")
+        )
+
+        # Abbreviate labels
+        abbr = {"Find passages": "FP", "Write answer": "WS", "Total roundtrip": "TR"}
+        req_view["stage"] = req_view["stage"].map(abbr).fillna("UNK")
+
+        # Stable order for legend/colors
+        stage_order = ["FP", "WS", "TR"]
+
+        # Friendly x labels (map, don't overwrite with a shorter list)
+        # ---- Friendly labels + ordering ----
+        id_map = {rid: i + 1 for i, rid in enumerate(req_view["request_id"].unique())}
+        req_view["req_num"] = req_view["request_id"].map(id_map)
+        req_view["req_label"] = req_view["req_num"].apply(lambda n: f"Req {n}")
+
+        # Expand short codes to legend-friendly names
+        stage_full_map = {
+            "FP": "Find passages (FP)",
+            "WS": "Write answer (WS)",
+            "TR": "Total roundtrip (TR)",
+        }
+        req_view["stage_full"] = req_view["stage"].map(lambda s: stage_full_map.get(str(s), str(s)))
+
+        # --- Build per-request summary (seconds) ---
+        wide = (
+            req_view.pivot_table(
+                index=["request_id","req_num","req_label"], 
+                columns="stage", values="duration_s", aggfunc="max"
+            )
+            .reset_index()
+            .rename(columns={"FP":"fp_s","WS":"ws_s","TR":"tr_s"})
+        )
+
+        wide["fp_s"] = wide["fp_s"].fillna(0)
+        wide["ws_s"] = wide["ws_s"].fillna(0)
+        wide["tr_s"] = wide["tr_s"].fillna(0)
+        wide["overhead_s"] = (wide["tr_s"] - (wide["fp_s"] + wide["ws_s"])).clip(lower=0)
+
+        # --- 100% stacked composition: FP / WS / Overhead as share of TR ---
+        comp = wide.copy()
+        # avoid divide-by-zero
+        comp["denom"] = comp["tr_s"].where(comp["tr_s"] > 0, (comp["fp_s"] + comp["ws_s"] + comp["overhead_s"]).replace(0, 1e-9))
+        comp_long = (
+            comp.melt(
+                id_vars=["req_num","req_label","tr_s","denom"],
+                value_vars=["fp_s","ws_s","overhead_s"],
+                var_name="part", value_name="seconds"
+            )
+        )
+        label_map = {"fp_s":"Find passages (FP)", "ws_s":"Write answer (WS)", "overhead_s":"Overhead"}
+        comp_long["part_label"] = comp_long["part"].map(label_map)
+        comp_long["share"] = (comp_long["seconds"] / comp_long["denom"]).fillna(0)
+
+        # consistent order/colors
+        legend_domain = ["Find passages (FP)", "Write answer (WS)", "Overhead"]
+        legend_range  = ["#1f77b4", "#2ca02c", "#8c8c8c"]
+
+        comp_chart = (
+            alt.Chart(comp_long)
+            .mark_bar(size=22)
+            .encode(
+                x=alt.X("req_num:O", sort=alt.SortField("req_num", order="ascending"),
+                        axis=alt.Axis(title="Request", labelExpr='"Req " + datum.value')),
+                y=alt.Y("share:Q", stack="normalize", axis=alt.Axis(format=".0%"), title="Share of roundtrip"),
+                color=alt.Color("part_label:N", title="Stage", scale=alt.Scale(domain=legend_domain, range=legend_range)),
+                tooltip=[
+                    alt.Tooltip("req_label:N", title="Request"),
+                    alt.Tooltip("part_label:N", title="Component"),
+                    alt.Tooltip("seconds:Q", title="Seconds", format=".3f"),
+                    alt.Tooltip("share:Q", title="Share", format=".1%"),
+                    alt.Tooltip("tr_s:Q", title="Total roundtrip (s)", format=".3f"),
+                ],
+            )
+            .properties(height=220)
+        )
+
+        # --- TR as a clean line below (seconds) ---
+        tr_chart = (
+            alt.Chart(wide)
+            .mark_line(point=True, strokeWidth=2, color="#d62728")
+            .encode(
+                x=alt.X("req_num:O", sort=alt.SortField("req_num", order="ascending"),
+                        axis=alt.Axis(title="Request", labelExpr='"Req " + datum.value')),
+                y=alt.Y("tr_s:Q", title="Total roundtrip (s)"),
+                tooltip=[alt.Tooltip("req_label:N", title="Request"),
+                        alt.Tooltip("tr_s:Q", title="Total roundtrip (s)", format=".3f")],
+            )
+            .properties(height=180)
+        )
+
+        st.altair_chart(alt.vconcat(comp_chart, tr_chart).resolve_scale(x="shared"), use_container_width=True)
+
 
 # --- Monitoring Tab: Track Key System Metrics --- 
 with tab_monitoring:
