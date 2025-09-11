@@ -140,11 +140,9 @@ The observability dashboard provides detailed timing metrics for each request:
 
 This view helps identify bottlenecks and monitor efficiency.
 
-#### **1: With end-to-end time, 21.37 seconds**
-![Observability Dashboard](assets/observability_page_a.png)
+#### **With end-to-end time, 0.88 seconds**
+![Observability Dashboard](assets/observability_page_raw_data.png)
 
-#### **2: With end-to-end time, 121.12 seconds**
-![Observability Dashboard](assets/observability_page_b.png)
 
 ---
 
@@ -152,7 +150,12 @@ This view helps identify bottlenecks and monitor efficiency.
 This chart visualizes request timings over multiple queries.  
 It highlights spikes in latency (e.g., long generation times) and makes it easy to compare **retrieval**, **generation**, and **roundtrip** performance across sessions.
 
-![Performance Trace Graph](assets/observability_page_graph.png)
+#### **1: With end-to-end time - ONLY FOR THE CURRENT SESSION, 0.88 seconds**
+![Performance Trace Graph](assets/observability_page_graph_a.png)
+
+---
+#### **1: With end-to-end time - FOR ALL SESSIONS UNTIL NOW**
+![Performance Trace Graph](assets/observability_page_graph_b.png)
 
 ---
 
