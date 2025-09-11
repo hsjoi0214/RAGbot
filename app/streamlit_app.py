@@ -1,5 +1,4 @@
 # streamlit_app.py
-
 """
 ================================================================================
 Streamlit RAGbot — "Conversations with Crime and Punishment"
@@ -36,32 +35,47 @@ OBSERVABILITY (what we show)
 - Local JSON traces (very simple) that capture durations per step.
 - A few counters/histograms via `app.metrics` (for example requests/errors).
 - A "DIY Observability" tab that shows averages and a timeline chart.
-
-NOTE
-----
-Everything below is carefully annotated for non-programmers, but the operational
-logic is unchanged. Only comments and docstrings were added.
 """
 
 # --- path bootstrap: keep at very top ---
-# (Technical: ensures imports like `from app.config import cfg` work even when
-# Streamlit launches from a different working directory.)
 import sys, pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 # ---------------------------------------
 
-import os, time, uuid, json
+# --- secrets → env shim (works locally and in Streamlit Cloud) ---
+import os
+try:
+    import streamlit as st  # noqa: F401
+    try:
+        items = st.secrets.items()  # may raise if no secrets.toml exists
+    except Exception:
+        items = []
+    for k, v in items:
+        os.environ.setdefault(k, str(v))
+except Exception:
+    pass
+# -----------------------------------------------------------------
+
+import time, uuid, json
 import streamlit as st
 import pandas as pd, numpy as np, altair as alt
 from dotenv import load_dotenv, find_dotenv
 from shutil import rmtree
 
-load_dotenv(find_dotenv(usecwd=True), override=True)
+# === ENV: load .env explicitly from repo root, fallback to search upward ===
+ENV_PATH = ROOT / ".env"
+if ENV_PATH.exists():
+    load_dotenv(dotenv_path=ENV_PATH, override=False)  # .env fills only missing keys
+else:
+    load_dotenv(find_dotenv(usecwd=True), override=False)
 
-# LlamaIndex: pieces that handle reading files, building a vector index,
-# embedding chunks, talking to the LLM, and maintaining chat memory.
+# Cosmetic defaults (don’t overwrite if already set)
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
+
+# --- now safe to import modules that read env on import ---
 from llama_index.core import SimpleDirectoryReader, VectorStoreIndex, StorageContext, load_index_from_storage
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.groq import Groq
@@ -71,30 +85,10 @@ from llama_index.core.base.llms.types import ChatMessage, MessageRole
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.postprocessor import SentenceTransformerRerank
 
-# Observability bits (your own small helpers)
-from app.config import cfg                 # central configuration (paths, model names, etc.)
-from app.tracing import get_tracer         # tracer for recording spans (timed operations)
-from app.metrics import REQS, ERRS, LAT_E2E, TOK_IN, TOK_OUT  # prometheus-style counters/histograms
-from app.logging_utils import log_event    # lightweight structured logging
-
-# Promote Streamlit Secrets into environment for any modules imported later.
-# setdefault() avoids clobbering anything you’ve explicitly set in the cloud UI.
-for k, v in st.secrets.items():
-    os.environ.setdefault(k, str(v))
-
-# === ENV: load .env explicitly from repo root, fallback to search upward (UNCHANGED) ===
-# We load environment variables (like GROQ_API_KEY) from a local ".env" file.
-# If that exact file isn't present, we search upward for any .env.
-ENV_PATH = ROOT / ".env"
-if ENV_PATH.exists():
-    load_dotenv(dotenv_path=ENV_PATH)           # preferred: exact file
-else:
-    load_dotenv(find_dotenv(usecwd=True))       # fallback
-
-# Silence HF tokenizers parallelism warning (cosmetic; avoids noisy console messages)
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-# Quiet Streamlit file-watcher tip if you don’t want to install watchdog
-os.environ.setdefault("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
+from app.config import cfg
+from app.tracing import get_tracer
+from app.metrics import REQS, ERRS, LAT_E2E, TOK_IN, TOK_OUT
+from app.logging_utils import log_event
 
 # ----------------- SECRETS / API KEY (robust) -----------------
 def _mask(k: str) -> str:
