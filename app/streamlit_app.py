@@ -804,10 +804,11 @@ with tab_diy:
         st.altair_chart(alt.vconcat(comp_chart, tr_chart).resolve_scale(x="shared"), use_container_width=True)
 
 
-# --- Monitoring Tab: Track Key System Metrics --- 
+# --- Monitoring Tab: Track Key System Metrics ---
 with tab_monitoring:
     st.subheader("System Health & Metrics")
 
+    # --- System health ---
     health_status = "🟢 Healthy"
     health_issue = []
 
@@ -818,49 +819,126 @@ with tab_monitoring:
         health_issue.append(f"🔴 Corpus file missing at: {cfg.TEXT_FILE}")
         health_status = "🔴 Error"
     if not os.path.exists(cfg.PERSIST_DIR) or not os.listdir(cfg.PERSIST_DIR):
-        health_issue.append(f"🔴 Vector index not found")
+        health_issue.append("🔴 Vector index not found")
         health_status = "🔴 Error"
 
     st.markdown(f"**Status:** {health_status}")
-    if health_issue:
-        st.markdown("\n".join(health_issue))
-    else:
-        st.markdown("Everything is running smoothly!")
+    st.markdown("\n".join(health_issue) if health_issue else "Everything is running smoothly!")
 
-    # --- Golden line separator between sections ---
-    st.markdown('<hr style="border: 1px solid #FFC000; margin-top: 20px; margin-bottom: 20px;" />', unsafe_allow_html=True)
-
+    # --- Divider ---
+    st.markdown('<hr style="border: 1px solid #FFC000; margin: 20px 0;" />', unsafe_allow_html=True)
+    
+    # --- Performance Metrics ---
     st.subheader("Performance Metrics")
 
-    # Success rate function
-    def compute_success_rate():
-        return 0.98
+    # Real-time data for Success Rate, Throughput, and Latency metrics
+    df_real_time = load_traces_df()
+    success_rate = throughput = p95 = p99 = float("nan")
 
-    success_rate = compute_success_rate()
-    st.metric("Success Rate", f"{success_rate*100:.2f}%", delta=None)
+    # Check if real-time data is available
+    if not df_real_time.empty:
+        # --- Process real-time data ---
+        df_real_time = df_real_time.copy()
 
-    # Throughput function
-    def compute_throughput():
-        return 100
+        # Calculate the duration in seconds
+        if "duration_ms" in df_real_time.columns:
+            df_real_time["duration_s"] = pd.to_numeric(df_real_time["duration_ms"], errors="coerce") / 1000.0
 
-    throughput = compute_throughput()
-    st.metric("Throughput", f"{throughput:.2f} req/min", delta=None)
+        # Start time as datetime
+        if "start_ts_ms" in df_real_time.columns:
+            df_real_time["start_ts"] = pd.to_datetime(
+                pd.to_numeric(df_real_time["start_ts_ms"], errors="coerce"), unit="ms", utc=True
+            )
 
-    # Percentile function (convert milliseconds to seconds)
-    def compute_percentile(df, percentile):
-        if "duration_ms" in df.columns:
-            # Convert milliseconds to seconds for percentile calculation
-            df["duration_s"] = df["duration_ms"] / 1000.0
-            return df["duration_s"].quantile(percentile)
+        # Prefer end-to-end spans for metrics; fallback to all spans
+        rounds = df_real_time[df_real_time["span_name"] == "rag.e2e"]
+        if rounds.empty:
+            rounds = df_real_time
+
+        # Use only the most recent 20 rows by start time
+        rounds = rounds.sort_values("start_ts_ms").tail(20)
+
+        # --- Success Rate calculation ---
+        if "success" in rounds.columns:
+            success_rate = float(pd.to_numeric(rounds["success"], errors="coerce").astype(bool).mean())
         else:
-            st.error("No duration_ms column found in the trace data.")
-            return None
+            def _is_error(attrs):
+                try:
+                    msg = str((attrs or {}).get("status") or (attrs or {}).get("error") or "").lower()
+                    return "error" in msg or "exception" in msg or "fail" in msg
+                except Exception:
+                    return False
+            errs = rounds["attributes"].apply(_is_error) if "attributes" in rounds.columns else pd.Series(False, index=rounds.index)
+            success_rate = float(1.0 - errs.mean())
 
-    df = load_traces_df()
-    if not df.empty:
-        p95_latency = compute_percentile(df, 0.95)
-        p99_latency = compute_percentile(df, 0.99)
-        st.metric("p95 Latency (s)", f"{p95_latency:.4f}", delta=None)
-        st.metric("p99 Latency (s)", f"{p99_latency:.4f}", delta=None)
+        # --- Throughput calculation (req/min) ---
+        if "start_ts" in rounds.columns and not rounds["start_ts"].isna().all():
+            minutes = max((rounds["start_ts"].max() - rounds["start_ts"].min()).total_seconds() / 60.0, 1e-9)
+            throughput = float(len(rounds) / minutes)
+
+        # --- Latency percentiles (p95, p99) ---
+        if "duration_s" in rounds.columns:
+            p95 = float(rounds["duration_s"].quantile(0.95))
+            p99 = float(rounds["duration_s"].quantile(0.99))
+
+        # Show real-time metrics
+        st.metric("Success Rate", f"{success_rate * 100:.2f}%")
+        st.metric("Throughput", f"{throughput:.2f} req/min")
+        st.metric("p95 Latency (s)", f"{p95:.4f}")
+        st.metric("p99 Latency (s)", f"{p99:.4f}")
+
     else:
-        st.info("No trace data available yet. Ask a question to generate traces.")
+        # --- Fallback to saved data (if no real-time data available) ---
+        st.warning("No real-time data available. Using saved trace data.")
+        df_fallback = load_traces_df()  # Fallback to saved trace data
+
+        if not df_fallback.empty:
+            # --- Process fallback data ---
+            df_fallback = df_fallback.copy()
+
+            # Calculate the duration in seconds
+            if "duration_ms" in df_fallback.columns:
+                df_fallback["duration_s"] = pd.to_numeric(df_fallback["duration_ms"], errors="coerce") / 1000.0
+
+            # Start time as datetime
+            if "start_ts_ms" in df_fallback.columns:
+                df_fallback["start_ts"] = pd.to_datetime(
+                    pd.to_numeric(df_fallback["start_ts_ms"], errors="coerce"), unit="ms", utc=True
+                )
+
+            # Prefer end-to-end spans for metrics; fallback to all spans
+            rounds = df_fallback[df_fallback["span_name"] == "rag.e2e"]
+            if rounds.empty:
+                rounds = df_fallback
+
+            # Use only the most recent 20 rows by start time
+            rounds = rounds.sort_values("start_ts_ms").tail(20)
+
+            # --- Success Rate calculation ---
+            if "success" in rounds.columns:
+                success_rate = float(pd.to_numeric(rounds["success"], errors="coerce").astype(bool).mean())
+            else:
+                def _is_error(attrs):
+                    try:
+                        msg = str((attrs or {}).get("status") or (attrs or {}).get("error") or "").lower()
+                        return "error" in msg or "exception" in msg or "fail" in msg
+                    except Exception:
+                        return False
+                errs = rounds["attributes"].apply(_is_error) if "attributes" in rounds.columns else pd.Series(False, index=rounds.index)
+                success_rate = float(1.0 - errs.mean())
+
+            # --- Throughput calculation (req/min) ---
+            if "start_ts" in rounds.columns and not rounds["start_ts"].isna().all():
+                minutes = max((rounds["start_ts"].max() - rounds["start_ts"].min()).total_seconds() / 60.0, 1e-9)
+                throughput = float(len(rounds) / minutes)
+
+            # --- Latency percentiles (p95, p99) ---
+            if "duration_s" in rounds.columns:
+                p95 = float(rounds["duration_s"].quantile(0.95))
+                p99 = float(rounds["duration_s"].quantile(0.99))
+
+            # Display fallback metrics
+            st.metric("Success Rate (Fallback)", f"{success_rate * 100:.2f}%")
+            st.metric("Throughput (Fallback)", f"{throughput:.2f} req/min")
+            st.metric("p95 Latency (s) (Fallback)", f"{p95:.4f}")
+            st.metric("p99 Latency (s) (Fallback)", f"{p99:.4f}")

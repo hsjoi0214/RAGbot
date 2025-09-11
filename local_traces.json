@@ -1959,5 +1959,111 @@
     },
     "session_id": "s_9907d884",
     "request_id": "r_f50aa8f7"
+  },
+  {
+    "span_name": "retrieve.topk",
+    "start_ts_ms": 256286286,
+    "end_ts_ms": 256286657,
+    "duration_ms": 370.642,
+    "attributes": {
+      "k": 2,
+      "hits": 2,
+      "best_score": 0.3923357958927968,
+      "request_id": "r_8b04e362"
+    },
+    "session_id": "s_4ddce218",
+    "request_id": "r_8b04e362"
+  },
+  {
+    "span_name": "engine.chat",
+    "start_ts_ms": 256286898,
+    "end_ts_ms": 256407488,
+    "duration_ms": 120590.783,
+    "attributes": {
+      "model": "llama-3.3-70b-versatile",
+      "request_id": "r_8b04e362",
+      "reranker": "msmarco_minilm_top1"
+    },
+    "session_id": "s_4ddce218",
+    "request_id": "r_8b04e362"
+  },
+  {
+    "span_name": "rag.e2e",
+    "start_ts_ms": 256286286,
+    "end_ts_ms": 256407494,
+    "duration_ms": 121208.434,
+    "attributes": {
+      "top_k": 2,
+      "request_id": "r_8b04e362"
+    },
+    "session_id": "s_4ddce218",
+    "request_id": "r_8b04e362"
+  },
+  {
+    "span_name": "retrieve.topk",
+    "start_ts_ms": 257869122,
+    "end_ts_ms": 257869357,
+    "duration_ms": 235.013,
+    "attributes": {
+      "k": 2,
+      "hits": 2,
+      "best_score": 0.2659860127123951,
+      "request_id": "r_d1e985bf"
+    },
+    "session_id": "s_20ec87c3",
+    "request_id": "r_d1e985bf"
+  },
+  {
+    "span_name": "engine.chat",
+    "start_ts_ms": 257869576,
+    "end_ts_ms": 257990527,
+    "duration_ms": 120951.042,
+    "attributes": {
+      "model": "llama-3.3-70b-versatile",
+      "request_id": "r_d1e985bf",
+      "reranker": "msmarco_minilm_top1"
+    },
+    "session_id": "s_20ec87c3",
+    "request_id": "r_d1e985bf"
+  },
+  {
+    "span_name": "rag.e2e",
+    "start_ts_ms": 257869121,
+    "end_ts_ms": 257990533,
+    "duration_ms": 121411.405,
+    "attributes": {
+      "top_k": 2,
+      "request_id": "r_d1e985bf"
+    },
+    "session_id": "s_20ec87c3",
+    "request_id": "r_d1e985bf"
+  },
+  {
+    "span_name": "retrieve.topk",
+    "start_ts_ms": 258925985,
+    "end_ts_ms": 258926294,
+    "duration_ms": 308.884,
+    "attributes": {
+      "k": 2,
+      "hits": 2,
+      "best_score": 0.40224834405338855,
+      "request_id": "r_c09d58de"
+    },
+    "session_id": "s_62060bc4",
+    "request_id": "r_c09d58de"
+  },
+  {
+    "span_name": "retrieve.topk",
+    "start_ts_ms": 259439996,
+    "end_ts_ms": 259440199,
+    "duration_ms": 202.572,
+    "attributes": {
+      "k": 2,
+      "hits": 2,
+      "best_score": 0.3923357958927968,
+      "request_id": "r_73e5a88e"
+    },
+    "session_id": "s_5a318367",
+    "request_id": "r_73e5a88e"
   }
 ]
