@@ -2,10 +2,9 @@
 
 >**Live App**: [Click here to try RAGbot on Streamlit](https://hsjoi0214-ragbot-appstreamlit-app-xxc6lx.streamlit.app/)
 
->**Medium Article**: [Click here to read the article](articles link)
+>**Medium Article**: [Click here to read the article](articles link to be posted here)
 
-This project is a part of a long and comprehensive article that is written on Medium giving a detailed information on what is RAG and how to implement it.  
-The final solution is wrapped inside a user-friendly **Streamlit app**, so anyone can experiment with creating a simple RAGbot themselves.
+This project accompanies a long-form Medium article that explains Retrieval-Augmented Generation (RAG) in depth and walks through its implementation. The final solution is packaged in a user-friendly **Streamlit App**, allowing anyone to experiment with building a simple RAGbot.ves.
 
 ---
 
@@ -144,7 +143,7 @@ This view helps identify bottlenecks and monitor efficiency.
 #### **1: With end-to-end time, 21.37 seconds**
 ![Observability Dashboard](assets/observability_page_a.png)
 
-#### **2: With end-to-end time, 121.14 seconds**
+#### **2: With end-to-end time, 121.12 seconds**
 ![Observability Dashboard](assets/observability_page_b.png)
 
 ---

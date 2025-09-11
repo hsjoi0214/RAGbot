@@ -1,4 +1,5 @@
 # streamlit_app.py
+
 """
 ================================================================================
 Streamlit RAGbot — "Conversations with Crime and Punishment"
@@ -75,6 +76,11 @@ from app.config import cfg                 # central configuration (paths, model
 from app.tracing import get_tracer         # tracer for recording spans (timed operations)
 from app.metrics import REQS, ERRS, LAT_E2E, TOK_IN, TOK_OUT  # prometheus-style counters/histograms
 from app.logging_utils import log_event    # lightweight structured logging
+
+# Promote Streamlit Secrets into environment for any modules imported later.
+# setdefault() avoids clobbering anything you’ve explicitly set in the cloud UI.
+for k, v in st.secrets.items():
+    os.environ.setdefault(k, str(v))
 
 # === ENV: load .env explicitly from repo root, fallback to search upward (UNCHANGED) ===
 # We load environment variables (like GROQ_API_KEY) from a local ".env" file.
