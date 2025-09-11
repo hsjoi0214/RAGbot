@@ -2,6 +2,11 @@
 
 >**Live App**: [Click here to try RAGbot on Streamlit](https://hsjoi0214-ragbot-appstreamlit-app-xxc6lx.streamlit.app/)
 
+>**Medium Article**: [Click here to read the article](articles link)
+
+This project is a part of a long and comprehensive article that is written on Medium giving a detailed information on what is RAG and how to implement it.  
+The final solution is wrapped inside a user-friendly **Streamlit app**, so anyone can experiment with creating a simple RAGbot themselves.
+
 ---
 
 ## Objective
@@ -136,7 +141,11 @@ The observability dashboard provides detailed timing metrics for each request:
 
 This view helps identify bottlenecks and monitor efficiency.
 
+#### **1: With end-to-end time, 21.37 seconds**
 ![Observability Dashboard](assets/observability_page_a.png)
+
+#### **2: With end-to-end time, 121.14 seconds**
+![Observability Dashboard](assets/observability_page_b.png)
 
 ---
 
@@ -144,7 +153,7 @@ This view helps identify bottlenecks and monitor efficiency.
 This chart visualizes request timings over multiple queries.  
 It highlights spikes in latency (e.g., long generation times) and makes it easy to compare **retrieval**, **generation**, and **roundtrip** performance across sessions.
 
-![Performance Trace Graph](assets/observability_page_b.png)
+![Performance Trace Graph](assets/observability_page_graph.png)
 
 ---
 
