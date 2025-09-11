@@ -1,0 +1,6 @@
+--constraint constraints-otel.txt
+
+-r requirements-app.txt
+-r requirements-obs.txt
+
+opentelemetry-exporter-otlp-proto-http==1.25.0
