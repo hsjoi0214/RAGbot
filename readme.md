@@ -8,7 +8,7 @@
 
 
 
-This project accompanies a long-form Medium article that explains Retrieval-Augmented Generation (RAG) in depth and walks through its implementation. The final solution is packaged in a user-friendly **Streamlit App**, allowing anyone to experiment with building a simple RAGbot.ves.
+This project accompanies a long-form Medium article that explains Retrieval-Augmented Generation (RAG) in depth and walks through its implementation. The final solution is packaged in a user-friendly **Streamlit App**, allowing anyone to experiment with building a simple RAGbot.
 
 ---
 
