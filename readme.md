@@ -2,7 +2,11 @@
 
 >**Live App**: [Click here to try RAGbot on Streamlit](https://hsjoi0214-ragbot-appstreamlit-app-xxc6lx.streamlit.app/)
 
->**Medium Article**: [Click here to read the article](articles link to be posted here)
+>**Medium Article**: [The Complete Guide to RAG, Part I: Operational Mechanics](https://medium.com/@prakash1402/the-complete-guide-to-rag-part-i-operational-mechanics-9365ba12b241)
+
+>**Medium Article**: [The Complete Guide to RAG, Part II: Setup, Design and Application](https://medium.com/@prakash1402/the-complete-guide-to-rag-part-ii-setup-design-and-application-cb0b415106e3)
+
+
 
 This project accompanies a long-form Medium article that explains Retrieval-Augmented Generation (RAG) in depth and walks through its implementation. The final solution is packaged in a user-friendly **Streamlit App**, allowing anyone to experiment with building a simple RAGbot.ves.
 
